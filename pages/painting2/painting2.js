@@ -25,10 +25,10 @@ Page({
         type: 'back',
         background: 'url("https://s1.ax1x.com/2022/05/25/XkAkZV.png") white no-repeat; background-size: 38px 38px;background-position: -4px -4px;'
       },
-      {
-        type: 'save',
-        background: 'url("https://s1.ax1x.com/2022/05/25/Xkpj5d.png") white no-repeat; background-size: 20px 20px;background-position: 5px 5px;'
-      },
+      // {
+      //   type: 'save',
+      //   background: 'url("https://s1.ax1x.com/2022/05/25/Xkpj5d.png") white no-repeat; background-size: 20px 20px;background-position: 5px 5px;'
+      // },
       {
         type: 'inpaint',
         background: 'url("https://s1.ax1x.com/2022/05/25/Xkpj5d.png") white no-repeat; background-size: 20px 20px;background-position: 5px 5px;'
@@ -49,6 +49,7 @@ Page({
     let that = this;
 
     const modelPath = `${wx.env.USER_DATA_PATH}/migan.onnx`;
+    const imagePATH = `${wx.env.USER_DATA_PATH}/pic.png`;
     wx.getFileSystemManager().access({
       path: modelPath,
       success: (res) => {
@@ -74,38 +75,12 @@ Page({
         that.session.onLoad(() => {
           that.ready = true;
           console.log("load ok");
-
-          // session.run({
-          //   image: {
-          //     type: 'uint8',
-          //     data: new Uint8Array(3 * 224 * 224).buffer,
-          //     shape: [1, 3, 224, 224] // NCHW 顺序
-          //   },
-          //   // 多个input的添加方法，假设第二个input需要数据类型为uint8
-          //   mask: {
-          //     type: 'uint8',
-          //     data: new Uint8Array(224 * 224).buffer,
-          //     shape: [1, 1, 224, 224]
-          //   },
-          // }).then(res => {
-          //   console.log(res.result)
-          // })
-          that.session.run({
-            type: 'float32',
-            data: new Float32Array(1 * 4 * 512 * 512).buffer,
-            shape: [1, 4, 512, 512] // NCHW 顺序
-          }).then(res => {
-            console.log("re.output")
-            console.log(res.output)
-          })
-         
         });
       },
       fail: (res) => {
         console.log(modelPath)
         wx.downloadFile({
-          url: 'https://test-1306637385.cos.ap-nanjing.myqcloud.com/migan.onnx?q-sign-algorithm=sha1&q-ak=AKIDHIJMfW91JUdpOE-ZB6Pkf3z3n0SFb1k2VX_BWLTTJ5a-sNPNA7jMHjbqlJc8r2yx&q-sign-time=1701269322;1701272922&q-key-time=1701269322;1701272922&q-header-list=&q-url-param-list=&q-signature=070e8ab68fa6740247354a100fd239c3716c1df1&x-cos-security-token=WuS9LuTNv8s50vYzkxtrNRjIq35nCYka4d2aba580c5eaef8c334be9bfadd5e17ScE7T4NY1zOl7ZyC_aYlghy8SobbZNAVseE4S6HF_8cW7SUZXr18RSUD0sHDxnnMKnrB0tbb0_LuV7g-eboMuvYPq0TN1nGYEcA8npxp_KH6dzAY9LvkqN_Kq0fiF0CkEDw7Dlc3drPRfdbDscdR9bDrMcWIsuab16dk65At3cqKo7GtuJhxLLeJnOm7Elf_&response-content-type=application%2Foctet-stream&response-content-disposition=attachment',
-          // url:"https://huggingface.co/lxfater/inpaint-web/resolve/main/migan.onnx",
+          url: "https://huggingface.co/lxfater/inpaint-web/resolve/main/migan.onnx",
           success(res) {
             if (res.statusCode === 200) {
               if (res.totalBytesExpectedToWrite === res.totalBytesWritten) {
@@ -147,13 +122,62 @@ Page({
                   },
                   fail(res) {
                     console.error(res)
-                    return
                   }
                 })
                 console.log(res.tempFilePath)
               }
 
             }
+          },
+          fail: function (res) {
+
+            wx.chooseMessageFile({
+              count: 1,
+              type: 'file',
+              success: function (res) {
+
+                console.log(res)
+                wx.getFileSystemManager().saveFile({
+                  tempFilePath: res.tempFiles[0].path,
+                  filePath: modelPath,
+                  success: (res) => { // 注册回调函数
+                    console.log(res)
+                    that.session = wx.createInferenceSession({
+                      model: modelPath,
+                      /* 0: Lowest  precision e.g., LS16 + A16 + Winograd A16 + approx. math
+                         1: Lower   precision e.g., LS16 + A16 + Winograd off + approx. math
+                         2: Modest  precision e.g., LS16 + A32 + Winograd A32 + approx. math
+                         3: Higher  precision e.g., LS32 + A32 + Winograd A32 + approx. math
+                         4: Highest precision e.g., LS32 + A32 + Winograd A32 + precise math
+              
+                         Higher precision always require longer time to run session
+                      */
+                      precisionLevel: 4,
+                      allowNPU: false, // wheather use NPU for inference, only useful for IOS
+                      allowQuantize: true, // wheather generate quantize model
+                    });
+
+                    // 监听error事件
+                    that.session.onError((error) => {
+                      console.error(error);
+                    });
+                    that.session.onLoad(() => {
+                      that.ready = true;
+                      console.log("load ok");
+                    });
+                  },
+                  fail(res) {
+                    console.error(res)
+                    return
+                  }
+                })
+
+
+              },
+              fail: function (res) {
+                console.log(res);
+              }
+            })
           }
         }).onProgressUpdate((res) => {
           console.log(res.progress)
@@ -176,13 +200,16 @@ Page({
         })
       },
     })
-    wx.chooseImage({
-      success: function (res) {
+
+    wx.getFileSystemManager().access({
+      path: imagePATH,
+      success: (res) => {
+        console.log(res)
         that.setData({
           hasChoosedImg: true,
         })
         wx.getImageInfo({
-          src: res.tempFilePaths[0],
+          src: imagePATH,
           success: function (res) {
             let [height, width] = [that.data.canvasWidth / res.width * res.height, that.data.canvasWidth];
             if (height > that.data.windowHeight - 50) {
@@ -209,9 +236,9 @@ Page({
                   console.log(res.height) // 100
                   console.log(res.data instanceof Uint8ClampedArray) // true
                   console.log(res.data.length) // 100 * 100 * 4
-                  that.setData({
-                    imgData: res.data,
-                  })
+                  // that.setData({
+                  //   imgData: res.data,
+                  // })
                 }
               })
             }, 500)
@@ -219,10 +246,73 @@ Page({
           }
         })
       },
-      fail: function (res) {
-        console.log(res);
+      fail: (res) => {
+        wx.chooseImage({
+          success: function (res) {
+            that.setData({
+              hasChoosedImg: true,
+            })
+            console.log(res)
+            wx.getFileSystemManager().saveFile({
+              tempFilePath: res.tempFilePaths[0],
+              filePath: imagePATH,
+              success: (res) => { // 注册回调函数
+                console.log(res)
+
+              },
+              fail(res) {
+                console.error(res)
+                return
+              }
+            })
+
+            wx.getImageInfo({
+              src: res.tempFilePaths[0],
+              success: function (res) {
+                let [height, width] = [that.data.canvasWidth / res.width * res.height, that.data.canvasWidth];
+                if (height > that.data.windowHeight - 50) {
+                  height = that.data.windowHeight - 50;
+                  width = height / res.height * res.width;
+                }
+                that.setData({
+                  canvasHeight: height,
+                  canvasWidth: width
+                });
+                setTimeout(() => {
+                  let ctx = wx.createCanvasContext('myCanvas');
+                  ctx.drawImage(res.path, 0, 0, that.data.canvasWidth, that.data.canvasHeight);
+                  ctx.draw();
+
+                  wx.canvasGetImageData({
+                    canvasId: 'myCanvas',
+                    x: 0,
+                    y: 0,
+                    width: that.data.canvasWidth,
+                    height: that.data.canvasHeight,
+                    success(res) {
+                      console.log(res.width) // 100
+                      console.log(res.height) // 100
+                      console.log(res.data instanceof Uint8ClampedArray) // true
+                      console.log(res.data.length) // 100 * 100 * 4
+                      // that.setData({
+                      //   imgData: res.data,
+                      // })
+                    }
+                  })
+                }, 500)
+
+              }
+            })
+          },
+          fail: function (res) {
+            console.log(res);
+          }
+        })
       }
     })
+
+
+
   },
 
   tapBtn: function (e) {
@@ -310,20 +400,61 @@ Page({
       }
 
       //to render mask and megre to input  
-      floatData[idx] = 0.0;
+      // floatData[idx] = 0.0;
 
       const xinput = {
         shape: [1, 4, 512, 512], // Input data shape in NCHW
         data: floatData.buffer,
         type: 'float32', // Input data type
       };
-      console.log("xinput")
+     
       console.log(xinput)
 
+      that.session.run({
+        input: xinput
+      }).then(res => {
+        console.log('no mask for now')
+        console.log(res.output)
+        let output = new Float32Array(res.output)
+        const hwSize = 512 * 512;
+
+        var finalout = new Uint8ClampedArray(4 * hwSize);
+
+        // fill the alpha channel
+        finalout.fill(255);
+
+        // convert from nchw to nhwc
+        idx = 0;
+        for (var c = 0; c < modelChannel; ++c) {
+          for (var hw = 0; hw < hwSize; ++hw) {
+            var dstIdx = hw * 4 + c;
+            finalout[dstIdx] = Math.max(0, Math.min(Math.round(output[idx]), 255));
+            idx++;
+          }
+        }
+        console.log("finalout")
+        wx.canvasPutImageData({
+          canvasId: 'myCanvas',
+          data: finalout,
+          height: 512,
+          width: 512,
+          x: 0,
+          y: 0,
+        }).then((res) => {
+          console.log(res)
+        })
+      })
+
+
+
       // that.session.run({
-      //   input: xinput
+      //   input: {
+      //     type: 'float32',
+      //     data: new Float32Array(1 * 4 * 512 * 512).buffer,
+      //     shape: [1, 4, 512, 512] // NCHW 顺序
+      //   }
       // }).then(res => {
-      //   console.log('no mask for now')
+      //   console.log('randmon')
       //   console.log(res.output)
       //   let output = new Float32Array(res.output)
       //   const hwSize = 512 * 512;
@@ -343,6 +474,7 @@ Page({
       //     }
       //   }
 
+
       //   wx.canvasPutImageData({
       //     canvasId: 'myCanvas',
       //     data: finalout,
@@ -354,48 +486,6 @@ Page({
       //     console.log(res)
       //   })
       // })
-
-
-
-      that.session.run({
-        input: {
-          type: 'float32',
-          data: new Float32Array(1 * 4 * 512 * 512).buffer,
-          shape: [1, 4, 512, 512] // NCHW 顺序
-        }
-      }).then(res => {
-        console.log('randmon')
-        console.log(res.output)
-        let output = new Float32Array(res.output)
-        const hwSize = 512 * 512;
-
-        var finalout = new Uint8ClampedArray(4 * hwSize);
-
-        // fill the alpha channel
-        finalout.fill(255);
-
-        // convert from nchw to nhwc
-        idx = 0;
-        for (var c = 0; c < modelChannel; ++c) {
-          for (var hw = 0; hw < hwSize; ++hw) {
-            var dstIdx = hw * 4 + c;
-            finalout[dstIdx] = Math.max(0, Math.min(Math.round(output[idx]), 255));
-            idx++;
-          }
-        }
-
-
-        wx.canvasPutImageData({
-          canvasId: 'myCanvas',
-          data: finalout,
-          height: 512,
-          width: 512,
-          x: 0,
-          y: 0,
-        }).then((res) => {
-          console.log(res)
-        })
-      })
     }
   },
 
