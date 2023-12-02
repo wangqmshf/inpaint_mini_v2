@@ -379,71 +379,82 @@ Page({
       let that = this
       console.log(wx.env.USER_DATA_PATH)
       console.log(this.data.line)
-      console.log(this.data.imgData)
-      const uint8Data = new Uint8Array(this.imgData)
-      // var floatData = new Float32Array(3 * this.data.canvasHeight * this.data.canvasWidth);
-      // const modelChannel = 3
-      // const imageWH = this.data.canvasHeight * this.data.canvasWidth;
-
-
-      // var floatData = new Float32Array(3 * 512*512);
-      var floatData = new Float32Array(4 * 512 * 512);
-      const modelChannel = 3
-      const imageWH = 512 * 512
-      var idx = 0;
-      for (var c = 0; c < modelChannel; ++c) {
-        for (var wh = 0; wh < imageWH; ++wh) {
-          var inputIdx = wh * 4 + c;
-          floatData[idx] = uint8Data[inputIdx];
-          idx++;
-        }
-      }
-
-      //to render mask and megre to input  
-      // floatData[idx] = 0.0;
-
-      const xinput = {
-        shape: [1, 4, 512, 512], // Input data shape in NCHW
-        data: floatData.buffer,
-        type: 'float32', // Input data type
-      };
-     
-      console.log(xinput)
-
-      that.session.run({
-        input: xinput
-      }).then(res => {
-        console.log('no mask for now')
-        console.log(res.output)
-        let output = new Float32Array(res.output)
-        const hwSize = 512 * 512;
-
-        var finalout = new Uint8ClampedArray(4 * hwSize);
-
-        // fill the alpha channel
-        finalout.fill(255);
-
-        // convert from nchw to nhwc
-        idx = 0;
-        for (var c = 0; c < modelChannel; ++c) {
-          for (var hw = 0; hw < hwSize; ++hw) {
-            var dstIdx = hw * 4 + c;
-            finalout[dstIdx] = Math.max(0, Math.min(Math.round(output[idx]), 255));
-            idx++;
+      wx.canvasGetImageData({
+        canvasId: 'myCanvas',
+        x: 0,
+        y: 0,
+        width: 512,
+        height: 512,
+        success(res) {
+          const uint8Data = new Uint8Array(res.data)
+          // var floatData = new Float32Array(3 * this.data.canvasHeight * this.data.canvasWidth);
+          // const modelChannel = 3
+          // const imageWH = this.data.canvasHeight * this.data.canvasWidth;
+    
+    
+          // var floatData = new Float32Array(3 * 512*512);
+          var floatData = new Float32Array(4 * 512 * 512);
+          const modelChannel = 3
+          const imageWH = 512 * 512
+          var idx = 0;
+          for (var c = 0; c < modelChannel; ++c) {
+            for (var wh = 0; wh < imageWH; ++wh) {
+              var inputIdx = wh * 4 + c;
+              floatData[idx] = uint8Data[inputIdx];
+              idx++;
+            }
           }
+    
+          //to render mask and megre to input  
+          // floatData[idx] = 0.0;
+    
+          const xinput = {
+            shape: [1, 4, 512, 512], // Input data shape in NCHW
+            data: floatData.buffer,
+            type: 'float32', // Input data type
+          };
+         
+          console.log(xinput)
+    
+          that.session.run({
+            input: xinput
+          }).then(res => {
+            console.log('no mask for now')
+            console.log(res.output)
+            let output = new Float32Array(res.output)
+            const hwSize = 512 * 512;
+    
+            var finalout = new Uint8ClampedArray(4 * hwSize);
+    
+            // fill the alpha channel
+            finalout.fill(255);
+    
+            // convert from nchw to nhwc
+            idx = 0;
+            for (var c = 0; c < modelChannel; ++c) {
+              for (var hw = 0; hw < hwSize; ++hw) {
+                var dstIdx = hw * 4 + c;
+                finalout[dstIdx] = Math.max(0, Math.min(Math.round(output[idx]), 255));
+                idx++;
+              }
+            }
+            console.log("finalout")
+            wx.canvasPutImageData({
+              canvasId: 'myCanvas',
+              data: finalout,
+              height: 512,
+              width: 512,
+              x: 0,
+              y: 0,
+            }).then((res) => {
+              console.log(res)
+            })
+          })
         }
-        console.log("finalout")
-        wx.canvasPutImageData({
-          canvasId: 'myCanvas',
-          data: finalout,
-          height: 512,
-          width: 512,
-          x: 0,
-          y: 0,
-        }).then((res) => {
-          console.log(res)
-        })
       })
+
+
+
 
 
 
