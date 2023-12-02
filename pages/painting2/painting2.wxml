@@ -1,0 +1,21 @@
+<!--painting-2.wxml-->
+<canvas canvas-id="myCanvas" disable-scroll="true" bindtouchstart="touchStart"
+  bindtouchmove="touchMove" bindtouchend="touchEnd" wx:if="{{hasChoosedImg}}"
+  style="height: {{(canvasHeightLen == 0) ? canvasHeight : canvasHeightLen}}px; width: {{canvasWidth}}px;" 
+/>
+<view class="failText" wx:if="{{!hasChoosedImg}}" click="">没有选择照片，点击重新选择</view>
+<view class="bottom">
+  <block wx:for="{{btnInfo}}" wx:key="{{index}}">
+    <view class="list-item" data-type="{{item.type}}" style="background: {{item.background}}" bindtap="tapBtn"></view>
+  </block>
+</view>
+<view class="choose-box" wx:if="{{width}}">
+<view class="color-box" style="background: {{'rgb(' + r + ', ' + g + ', ' + b + ')'}}; height: {{w}}px; border-radius: {{w/2}}px"></view>
+  <slider min="1" max="50" step="1" show-value="true" value="{{w}}" bindchange="changeWidth"/>
+</view>
+<view class="choose-box" wx:if="{{color}}">
+  <view class="color-box" style="background: {{'rgb(' + r + ', ' + g + ', ' + b + ')'}}; height: {{w}}px; border-radius: {{w/2}}px"></view>
+  <slider min="0" max="255" step="1" show-value="true" activeColor="red" value="{{r}}" data-color="r" bindchange="changeColor"/>
+  <slider min="0" max="255" step="1" show-value="true" activeColor="green" value="{{g}}" data-color="g" bindchange="changeColor"/>
+  <slider min="0" max="255" step="1" show-value="true" activeColor="blue" value="{{b}}" data-color="b" bindchange="changeColor"/>
+</view>
