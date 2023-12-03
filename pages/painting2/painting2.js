@@ -172,7 +172,6 @@ Page({
       const realMark = originalMarkMat.data[i] === 255 ? 0 : 1
       const value = outImgMat.data[i]
       temp[i] = originalMat.data[i] * realMark + value * (1 - realMark)
-      temp[i] = value
     }
     originalMat.delete()
     originalMarkMat.delete()
