@@ -428,10 +428,10 @@ Page({
         wx.getImageInfo({
           src: imagePATH,
           success: function (res) {
-            let [height, width] = [that.data.canvasWidth / res.width * res.height, that.data.canvasWidth];
+            let [height, width] = [Math.floor(that.data.canvasWidth / res.width * res.height), that.data.canvasWidth];
             if (height > that.data.windowHeight - 50) {
               height = that.data.windowHeight - 50;
-              width = height / res.height * res.width;
+              width = Math.floor(height / res.height * res.width);
             }
             that.setData({
               canvasHeight: height,
@@ -479,10 +479,10 @@ Page({
                 wx.getImageInfo({
                   src: imagePATH,
                   success: function (res) {
-                    let [height, width] = [that.data.canvasWidth / res.width * res.height, that.data.canvasWidth];
+                    let [height, width] = [Math.floor(that.data.canvasWidth / res.width * res.height), that.data.canvasWidth];
                     if (height > that.data.windowHeight - 50) {
                       height = that.data.windowHeight - 50;
-                      width = height / res.height * res.width;
+                      width = Math.floor(height / res.height * res.width);
                     }
                     that.setData({
                       canvasHeight: height,
