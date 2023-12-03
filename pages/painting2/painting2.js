@@ -1,4 +1,7 @@
 // painting-2.js
+global.wasm_url = '/utils/opencv3.4.16.wasm.br'
+// opencv_exec.js会从global.wasm_url获取wasm路径
+let cv = require('../../utils/opencv_exec.js');
 Page({
 
   /**
@@ -36,12 +39,227 @@ Page({
     ],
     width: false,
     color: false,
-    r: 33,
-    g: 33,
-    b: 33,
-    w: 2,
+    r: 255,
+    g: 0,
+    b: 0,
+    w: 20,
+  },
+  // 获取图像数据和调整图像大小
+  getImageData(image, offscreenCanvas) {
+    var _that = this
+    // const ctx = wx.createCanvasContext(canvasId);
+
+    // var canvasWidth = image.width;
+    // let maxCanvasWidth = this.data.canvasWidth
+    // if (canvasWidth > maxCanvasWidth) {
+    //   canvasWidth = maxCanvasWidth;
+    // }
+    // // canvas Height
+    // var canvasHeight = Math.floor(canvasWidth * (image.height / image.width));
+    // // 离屏画布的宽度和高度不能小于图像的
+    var canvasWidth = _that.data.canvasWidth;
+    var canvasHeight = _that.data.canvasHeight;
+    offscreenCanvas.width = canvasWidth;
+    offscreenCanvas.height = canvasHeight;
+    // draw image on canvas
+    var ctx = offscreenCanvas.getContext('2d')
+    ctx.drawImage(image, 0, 0, canvasWidth, canvasHeight);
+    // get image data from canvas
+    var imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+
+    return imgData
+  },
+  // 创建图像对象
+  async createImageElement(imgUrl) {
+    var _that = this
+    // 创建2d类型的离屏画布（需要微信基础库2.16.1以上）
+    var offscreenCanvas = wx.createOffscreenCanvas({
+      type: '2d'
+    });
+    const image = offscreenCanvas.createImage();
+    await new Promise(function (resolve, reject) {
+      image.onload = resolve
+      image.onerror = reject
+      image.src = imgUrl
+    })
+    const imageData = _that.getImageData(image, offscreenCanvas)
+    return imageData
+  },
+  mergeMarkToImg(mask, img) {
+    const temp = new Float32Array(img.length)
+    const maskTemp = new Float32Array(mask.length)
+    const C = 3
+    const H = 512
+    const W = 512
+
+    for (let c = 0; c < C; c++) {
+      for (let h = 0; h < H; h++) {
+        for (let w = 0; w < W; w++) {
+          temp[c * H * W + h * W + w] =
+            img[c * H * W + h * W + w] * mask[h * W + w]
+        }
+      }
+    }
+
+    for (let h = 0; h < H; h++) {
+      for (let w = 0; w < W; w++) {
+        maskTemp[h * W + w] = mask[h * W + w] - 0.5
+      }
+    }
+
+    const res = new Float32Array(mask.length + img.length)
+    const maskLength = mask.length
+
+    for (let c = 0; c < maskLength; c++) {
+      res[c] = maskTemp[c]
+    }
+
+    const imgLength = img.length
+
+    for (let c = 0; c < imgLength; c++) {
+      res[maskLength + c] = temp[c]
+    }
+
+    return res
   },
 
+  async getImgData() {
+    const imageData = await this.createImageElement(`${wx.env.USER_DATA_PATH}/pic.png`)
+    return imageData
+  },
+  processImage(imageData) {
+    let size = 512
+    const src = cv.imread(imageData)
+    const src_rgb = new cv.Mat()
+    const dst = new cv.Mat()
+    const dsize = new cv.Size(size, size) // 新尺寸
+    // 将图像从RGBA转换为RGB
+    cv.cvtColor(src, src_rgb, cv.COLOR_RGBA2RGB)
+    // 调整图像大小
+    cv.resize(src_rgb, dst, dsize, 0, 0, cv.INTER_CUBIC)
+
+    let img = dst
+    const channels = new cv.MatVector()
+    cv.split(img, channels) // 分割通道
+
+    const C = channels.size() // 通道数
+    const H = img.rows // 图像高度
+    const W = img.cols // 图像宽度
+
+    const chwArray = new Float32Array(C * H * W) // 创建新的数组来存储转换后的数据
+
+    for (let c = 0; c < C; c++) {
+      const channelData = channels.get(c).data // 获取单个通道的数据
+      for (let h = 0; h < H; h++) {
+        for (let w = 0; w < W; w++) {
+          chwArray[c * H * W + h * W + w] = (channelData[h * W + w] * 2) / 255 - 1
+          // chwArray[c * H * W + h * W + w] = channelData[h * W + w]
+        }
+      }
+    }
+    return chwArray
+  },
+  mergeImg(outImgMat, originalImg, originalMark) {
+
+    const originalMat = cv.imread(originalImg)
+    const originalMarkMat = cv.imread(originalMark)
+    const H = originalImg.height
+    const W = originalImg.width
+    const C = 4
+    const temp = []
+
+    for (let i = 0; i < originalMarkMat.data.length; i++) {
+      const realMark = originalMarkMat.data[i] === 255 ? 0 : 1
+      const value = outImgMat.data[i]
+      temp[i] = originalMat.data[i] * realMark + value * (1 - realMark)
+      temp[i] = value
+    }
+    originalMat.delete()
+    originalMarkMat.delete()
+
+    return new Uint8ClampedArray(temp)
+  },
+  postProcess(floatData, width, height) {
+    const chwToHwcData = []
+    const size = width * height
+
+    for (let h = 0; h < height; h++) {
+      for (let w = 0; w < width; w++) {
+        for (let c = 0; c < 3; c++) {
+          // RGB通道
+          const chwIndex = c * size + h * width + w
+          const pixelVal = floatData[chwIndex] * 0.5 + 0.5
+          let newPiex = pixelVal
+          if (pixelVal > 1) {
+            newPiex = 1
+          } else if (pixelVal < 0) {
+            newPiex = 0
+          }
+          chwToHwcData.push(newPiex * 255) // 归一化反转
+        }
+        chwToHwcData.push(255) // Alpha通道
+      }
+    }
+    return chwToHwcData
+  },
+  getMaskData() {
+    let that = this
+    // to render mask and megre to input  
+    var maskCanvas = wx.createOffscreenCanvas({
+      type: '2d'
+    });
+    maskCanvas.width = that.data.canvasWidth;
+    maskCanvas.height = that.data.canvasHeight
+    const ctx = maskCanvas.getContext('2d')
+    // let ctx = wx.createCanvasContext('myCanvas');
+    ctx.clearRect(0, 0, that.data.canvasWidth, that.data.canvasHeight)
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'
+    ctx.lineWidth = that.data.w
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    for (let index in that.data.points) {
+      let point = that.data.points[index]
+      ctx.moveTo(point[0], point[1]);
+      ctx.lineTo(point[2], point[3]);
+      ctx.stroke();
+      // ctx.draw(true);
+    }
+    var imgData = ctx.getImageData(0, 0, that.data.canvasWidth, that.data.canvasHeight);
+    return imgData
+  },
+  processMark(imgData) {
+    const src = cv.imread(imgData)
+    const src_grey = new cv.Mat()
+    const dst = new cv.Mat()
+    const dsize = new cv.Size(512, 512) // 新尺寸
+
+    // 将图像从RGBA转换为二值化
+    cv.cvtColor(src, src_grey, cv.COLOR_BGR2GRAY)
+
+    // 调整图像大小
+    cv.resize(src_grey, dst, dsize, 0, 0, cv.INTER_NEAREST)
+
+    let img = dst
+    const channels = new cv.MatVector()
+    cv.split(img, channels) // 分割通道
+
+    const C = 1 // 通道数
+    const H = img.rows // 图像高度
+    const W = img.cols // 图像宽度
+
+    const chwArray = new Float32Array(C * H * W) // 创建新的数组来存储转换后的数据
+
+    for (let c = 0; c < C; c++) {
+      const channelData = channels.get(0).data // 获取单个通道的数据
+      for (let h = 0; h < H; h++) {
+        for (let w = 0; w < W; w++) {
+          chwArray[c * H * W + h * W + w] = channelData[h * W + w] === 255 ? 0 : 1
+        }
+      }
+    }
+    return chwArray
+  },
   /**
    * 生命周期函数--监听页面加载
    */
@@ -253,12 +471,49 @@ Page({
               hasChoosedImg: true,
             })
             console.log(res)
+            const tmpPicPath = res.tempFiles[0].path
             wx.getFileSystemManager().saveFile({
-              tempFilePath: res.tempFilePaths[0],
+              tempFilePath: tmpPicPath,
               filePath: imagePATH,
               success: (res) => { // 注册回调函数
                 console.log(res)
+                wx.getImageInfo({
+                  src: imagePATH,
+                  success: function (res) {
+                    let [height, width] = [that.data.canvasWidth / res.width * res.height, that.data.canvasWidth];
+                    if (height > that.data.windowHeight - 50) {
+                      height = that.data.windowHeight - 50;
+                      width = height / res.height * res.width;
+                    }
+                    that.setData({
+                      canvasHeight: height,
+                      canvasWidth: width
+                    });
+                    setTimeout(() => {
+                      let ctx = wx.createCanvasContext('myCanvas');
+                      ctx.drawImage(res.path, 0, 0, that.data.canvasWidth, that.data.canvasHeight);
+                      ctx.draw();
 
+                      wx.canvasGetImageData({
+                        canvasId: 'myCanvas',
+                        x: 0,
+                        y: 0,
+                        width: that.data.canvasWidth,
+                        height: that.data.canvasHeight,
+                        success(res) {
+                          console.log(res.width) // 100
+                          console.log(res.height) // 100
+                          console.log(res.data instanceof Uint8ClampedArray) // true
+                          console.log(res.data.length) // 100 * 100 * 4
+                          // that.setData({
+                          //   imgData: res.data,
+                          // })
+                        }
+                      })
+                    }, 500)
+
+                  }
+                })
               },
               fail(res) {
                 console.error(res)
@@ -266,43 +521,7 @@ Page({
               }
             })
 
-            wx.getImageInfo({
-              src: res.tempFilePaths[0],
-              success: function (res) {
-                let [height, width] = [that.data.canvasWidth / res.width * res.height, that.data.canvasWidth];
-                if (height > that.data.windowHeight - 50) {
-                  height = that.data.windowHeight - 50;
-                  width = height / res.height * res.width;
-                }
-                that.setData({
-                  canvasHeight: height,
-                  canvasWidth: width
-                });
-                setTimeout(() => {
-                  let ctx = wx.createCanvasContext('myCanvas');
-                  ctx.drawImage(res.path, 0, 0, that.data.canvasWidth, that.data.canvasHeight);
-                  ctx.draw();
 
-                  wx.canvasGetImageData({
-                    canvasId: 'myCanvas',
-                    x: 0,
-                    y: 0,
-                    width: that.data.canvasWidth,
-                    height: that.data.canvasHeight,
-                    success(res) {
-                      console.log(res.width) // 100
-                      console.log(res.height) // 100
-                      console.log(res.data instanceof Uint8ClampedArray) // true
-                      console.log(res.data.length) // 100 * 100 * 4
-                      // that.setData({
-                      //   imgData: res.data,
-                      // })
-                    }
-                  })
-                }, 500)
-
-              }
-            })
           },
           fail: function (res) {
             console.log(res);
@@ -315,7 +534,7 @@ Page({
 
   },
 
-  tapBtn: function (e) {
+  async tapBtn(e) {
     let btnType = e.target.dataset.type;
 
     if (btnType == 'width') {
@@ -378,85 +597,103 @@ Page({
     } else if (btnType == 'inpaint') {
       let that = this
       console.log(wx.env.USER_DATA_PATH)
-      console.log(this.data.line)
-      wx.canvasGetImageData({
-        canvasId: 'myCanvas',
-        x: 0,
-        y: 0,
-        width: 512,
-        height: 512,
-        success(res) {
-          const uint8Data = new Uint8Array(res.data)
-          // var floatData = new Float32Array(3 * this.data.canvasHeight * this.data.canvasWidth);
-          // const modelChannel = 3
-          // const imageWH = this.data.canvasHeight * this.data.canvasWidth;
-    
-    
-          // var floatData = new Float32Array(3 * 512*512);
-          var floatData = new Float32Array(4 * 512 * 512);
-          const modelChannel = 3
-          const imageWH = 512 * 512
-          var idx = 0;
-          for (var c = 0; c < modelChannel; ++c) {
-            for (var wh = 0; wh < imageWH; ++wh) {
-              var inputIdx = wh * 4 + c;
-              floatData[idx] = uint8Data[inputIdx];
-              idx++;
-            }
-          }
-    
-          //to render mask and megre to input  
-          // floatData[idx] = 0.0;
-    
-          const xinput = {
-            shape: [1, 4, 512, 512], // Input data shape in NCHW
-            data: floatData.buffer,
-            type: 'float32', // Input data type
-          };
-         
-          console.log(xinput)
-    
-          that.session.run({
-            input: xinput
-          }).then(res => {
-            console.log('no mask for now')
-            console.log(res.output)
-            let output = new Float32Array(res.output)
-            const hwSize = 512 * 512;
-    
-            var finalout = new Uint8ClampedArray(4 * hwSize);
-    
-            // fill the alpha channel
-            finalout.fill(255);
-    
-            // convert from nchw to nhwc
-            idx = 0;
-            for (var c = 0; c < modelChannel; ++c) {
-              for (var hw = 0; hw < hwSize; ++hw) {
-                var dstIdx = hw * 4 + c;
-                finalout[dstIdx] = Math.max(0, Math.min(Math.round(output[idx]), 255));
-                idx++;
-              }
-            }
-            console.log("finalout")
-            wx.canvasPutImageData({
-              canvasId: 'myCanvas',
-              data: finalout,
-              height: 512,
-              width: 512,
-              x: 0,
-              y: 0,
-            }).then((res) => {
-              console.log(res)
-            })
-          })
+      // if(!this.data.points){
+      //   return
+      // }
+      // console.log(this.data.points)
+
+      let imgData = await that.getImgData()
+      let maskData = that.getMaskData()
+      let imgArray = that.processImage(imgData)
+      let mark = that.processMark(maskData)
+      const input = that.mergeMarkToImg(mark, imgArray)
+
+      const xinput = {
+        shape: [1, 4, 512, 512], // Input data shape in NCHW
+        data: input.buffer,
+        type: 'float32', // Input data type
+      };
+
+      console.log(xinput)
+      var log = wx.getRealtimeLogManager ? wx.getRealtimeLogManager() : null
+      log.error(xinput)
+      that.session.run({
+        input: xinput
+      }).then(res => {
+        // console.log(res.output)
+
+        let output = new Float32Array(res.output.data)
+        const chwToHwcData = that.postProcess(output, 512, 512)
+        var rgb = new Uint8ClampedArray(chwToHwcData)
+        const imageData = {
+          data: rgb,
+          width: 512,
+          height: 512
         }
+
+
+        // let output = new Float32Array(res.output.data)
+        // const hwSize = 512 * 512
+
+        // var finalout = new Uint8ClampedArray(4 * hwSize);
+
+        // // fill the alpha channel
+        // finalout.fill(255);
+
+        // // convert from nchw to nhwc
+        // let modelChannel =3
+        // let idx = 0;
+        // for (var c = 0; c < modelChannel; ++c) {
+        //   for (var hw = 0; hw < hwSize; ++hw) {
+        //     var dstIdx = hw * 4 + c;
+        //     finalout[dstIdx] = Math.max(0, Math.min(Math.round(output[idx]), 255));
+        //     idx++;
+        //   }
+        // }
+
+
+        // const imageData = new ImageData(
+        //   new Uint8ClampedArray(chwToHwcData),
+        //   size,
+        //   size
+        // )
+        const dst = new cv.Mat()
+        const dsize = new cv.Size(that.data.canvasWidth, that.data.canvasHeight)
+        const outImgMat = cv.matFromImageData(imageData)
+
+        cv.resize(outImgMat, dst, dsize, 0, 0, cv.INTER_CUBIC)
+
+        const result = that.mergeImg(dst, imgData, maskData)
+        dst.delete()
+        // console.log("chwToHwcData")
+        // wx.canvasPutImageData({
+        //   canvasId: 'myCanvas',
+        //   data: rgb,
+        //   height: 512,
+        //   width: 512,
+        //   x: 0,
+        //   y: 0,
+        // }).then((res) => {
+        //   console.log(res)
+        // }).catch((err) => {
+        //   console.log(err)
+        // })
+
+        wx.canvasPutImageData({
+          canvasId: 'myCanvas',
+          data: result,
+          height: that.data.canvasHeight,
+          width: that.data.canvasWidth,
+          x: 0,
+          y: 0,
+        }).then((res) => {
+          console.log(res)
+        }).catch((err) => {
+          console.log(err)
+        })
+      }).catch((err) => {
+        console.log(err)
       })
-
-
-
-
-
 
       // that.session.run({
       //   input: {
@@ -504,9 +741,7 @@ Page({
 
     this.setData({
       prevPosition: [e.touches[0].x, e.touches[0].y],
-      line: [
-        [e.touches[0].x, e.touches[0].y]
-      ],
+      points: [],
       width: false,
       color: false,
       canvasHeightLen: 0
@@ -542,10 +777,10 @@ Page({
     ctx.lineTo(e.touches[0].x, e.touches[0].y);
     ctx.stroke();
     ctx.draw(true);
-    this.data.line.push([e.touches[0].x, e.touches[0].y])
+    this.data.points.push([this.data.prevPosition[0], this.data.prevPosition[1], e.touches[0].x, e.touches[0].y])
     this.setData({
       prevPosition: [e.touches[0].x, e.touches[0].y],
-      line: this.data.line
+      points: this.data.points
     })
   },
 
