@@ -212,7 +212,7 @@ Page({
     const ctx = maskCanvas.getContext('2d')
     // let ctx = wx.createCanvasContext('myCanvas');
     ctx.clearRect(0, 0, that.data.canvasWidth, that.data.canvasHeight)
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'
+    ctx.strokeStyle = 'white'
     ctx.lineWidth = that.data.w
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
