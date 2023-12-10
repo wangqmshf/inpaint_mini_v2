@@ -1,60 +1,54 @@
 /* painting-2.wxss */
 page {
-  background: rgba(153, 204, 255, 0.1);
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-bottom: 0 !important;
+  background-color: #242424 !important;
 }
 
-.failText {
-  margin-top: 100px;
-  text-align: center;
-  color: #888;
-}
-
-.bottom {
-  width: 100vw;
-  height: 50px;
-  position: absolute;
-  bottom: 0;
-  display: flex;
-  justify-content: space-around;
-}
-
-.list-item {
-  width: 30px;
-  height: 30px;
-  margin: 10px 0;
+.colorBtn {
+  width: 50rpx;
+  height: 50rpx;
   border-radius: 50%;
+  margin-right: 20rpx;
+  display: inline-block;
+  border: 6rpx solid #242424;
 }
 
-.choose-box {
-  width: 100vw;
+.colorBtn.select {
+  border: 6rpx solid #FFF;
+}
+
+.bars {
+  right: 1rem;
+  width: 400rpx;
+  padding: 20rpx;
+  bottom: 7.5rem;
+  color: #a88cf8;
+  font-size: 32rpx;
+  font-weight: bold;
   position: absolute;
-  bottom: 50px;
-}
-
-.color-box {
-  width: 50vw;
-  margin: 20px auto;
+  border-radius: 8rpx;
+  background-color: #242424;
+  box-shadow: 0 0 1.5rem 0 #FFFFFF20;
 }
 
 slider {
-  margin: 20px 30px;
+  margin: 20rpx 20rpx 20rpx 0 !important;
 }
 
-.choose-box-flex {
+.flex_column {
   display: flex;
-  justify-content: space-around;
-  width: 100vw;
-  position: absolute;
-  bottom: 50px;
-  font-size: 16px;
-  color: #666;
-  text-align: center;
+  flex-direction: column !important;
 }
-.choose-img {
-  width: 30px;
-  height: 30px;
-  margin: 10px;
 
-  border-radius: 50%;
-  background: white;
+.vertical_center {
+  display: flex;
+  align-items: center;
+}
+
+.space {
+  display: flex;
+  justify-content: space-between;
 }

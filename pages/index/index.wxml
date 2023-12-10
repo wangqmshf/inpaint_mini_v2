@@ -1,9 +1,0 @@
-<!--index.wxml-->
-<view class="painting" bindtap="toPainting">
-  <image src="../../images/paint3.png" mode="aspectFit"/>
-</view>
-
-<view class="painting2" bindtap="toPainting2">
-  <image src="../../images/paint2.png" mode="aspectFit"/>
-</view>
-

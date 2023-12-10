@@ -1,21 +1,52 @@
 <!--painting-2.wxml-->
-<canvas canvas-id="myCanvas" disable-scroll="true" bindtouchstart="touchStart"
-  bindtouchmove="touchMove" bindtouchend="touchEnd" wx:if="{{hasChoosedImg}}"
-  style="height: {{(canvasHeightLen == 0) ? canvasHeight : canvasHeightLen}}px; width: {{canvasWidth}}px;" 
-/>
-<view class="failText" wx:if="{{!hasChoosedImg}}" click="">没有选择照片，点击重新选择</view>
-<view class="bottom">
-  <block wx:for="{{btnInfo}}" wx:key="{{index}}">
-    <view class="list-item" data-type="{{item.type}}" style="background: {{item.background}}" bindtap="tapBtn"></view>
-  </block>
+<view style="height: 100vh;" class="flex_column" catch:tap="hideBarsHandler">
+  <!-- 涂鸦区 -->
+  <view style="flex: 1; position: relative;" catch:touchstart="hideBarsHandler">
+    <image src="{{cover}}"
+           mode="aspectFit"
+           style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; width: {{canvasWidth}}px; height: {{canvasHeight}}px;"
+    />
+    <canvas style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2; width: {{canvasWidth}}px; height: {{canvasHeight}}px;"
+            id="myCanvas"
+            canvas-id="myCanvas"
+            type="2d"
+            bindtouchstart="startTouchClick"
+            bindtouchmove="moveClick"
+            bindtouchend="endTouchClick"
+            binderror="errorClick">
+    </canvas>
+  </view>
+  <!-- 涂鸦工具区 -->
+  <view style="padding: 30rpx 32rpx 50rpx;">
+    <scroll-view scroll-x style="height: 90rpx;">
+      <view style="white-space: nowrap;">
+        <block wx:for="{{colors}}" wx:key="index">
+          <view style="background-color: {{item}};" class="colorBtn {{selectColor == item && 'select'}}" catch:tap="colorChange" data-color="{{item}}"></view>
+        </block>
+      </view>
+    </scroll-view>
+    <view class="space" style="padding-bottom: 20rpx; color: #FFF; font-size: 30rpx; line-height: 56rpx;">
+      <view catch:tap="new">新建</view>
+      <view style="width: 30rpx;"></view>
+      <view catch:tap="inPaint">消除</view>
+      <view style="width: 30rpx;"></view>
+      <view catch:tap="save">保存</view>
+      <view style="flex: 1;"></view>
+      <view catch:tap="showBarsHandler">笔宽</view>
+      <view style="width: 30rpx;"></view>
+      <view catch:tap="rubberHandler">橡皮擦</view>
+      <view style="width: 30rpx;"></view>
+      <view catch:tap="restore">回退</view>
+      <view style="width: 30rpx;"></view>
+      <view catch:tap="clearRect">清除</view>
+    </view>
+  </view>
 </view>
-<view class="choose-box" wx:if="{{width}}">
-<view class="color-box" style="background: {{'rgb(' + r + ', ' + g + ', ' + b + ')'}}; height: {{w}}px; border-radius: {{w/2}}px"></view>
-  <slider min="1" max="50" step="1" show-value="true" value="{{w}}" bindchange="changeWidth"/>
-</view>
-<view class="choose-box" wx:if="{{color}}">
-  <view class="color-box" style="background: {{'rgb(' + r + ', ' + g + ', ' + b + ')'}}; height: {{w}}px; border-radius: {{w/2}}px"></view>
-  <slider min="0" max="255" step="1" show-value="true" activeColor="red" value="{{r}}" data-color="r" bindchange="changeColor"/>
-  <slider min="0" max="255" step="1" show-value="true" activeColor="green" value="{{g}}" data-color="g" bindchange="changeColor"/>
-  <slider min="0" max="255" step="1" show-value="true" activeColor="blue" value="{{b}}" data-color="b" bindchange="changeColor"/>
+
+<view class="bars {{showBars && 'show'}}" wx:if="{{showBars}}" style="z-index: 100">
+  <view class="space vertical_center">
+    <view style="width: 136rpx;">字号：</view>
+    <slider style="flex: 1;" value="{{selectSize}}" step="1" min="10" max="50" block-size="12" activeColor="#a88cf8" bindchange="sizeHandler" />
+    <view style="width: 50rpx; text-align: right;">{{selectSize}}</view>
+  </view>
 </view>
