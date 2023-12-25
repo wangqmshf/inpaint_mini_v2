@@ -11,6 +11,7 @@ export class Migan {
   speedTime = 0.0;
   res = 512;
   padding = 128;
+  debugMode = true;
 
   constructor() {
     this.ready = false;
@@ -152,9 +153,8 @@ export class Migan {
   }
 
   async execute(image, mask) {
-    let currentTime = new Date();
-    let formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
-    console.log(formattedTime + " - the process is starting");
+    this.showDebugLog(" - the process is starting");
+
     // 获取裁剪边界框坐标
     const [x_min, x_max, y_min, y_max] = this.getMaskedBbox(mask);
     console.log(x_min + ' ' + x_max + ' ' +  y_min + ' ' + y_max);
@@ -165,29 +165,22 @@ export class Migan {
 
     // 预处理
     const modelInput = this.preprocess(croppedImg, croppedMask);
-    currentTime = new Date();
-    formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
-    console.log(formattedTime + " - preprocess is completed");
+    this.showDebugLog(" - preprocess is completed");
 
     // 模型推理
     const modelOutput = await this.runSession(modelInput);
-    currentTime = new Date();
-    formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
-    console.log(formattedTime + " - model inference is completed");
+    this.showDebugLog(" - model inference is completed");
 
     // 后处理
     const postResult = await this.postprocess(croppedImg, croppedMask, modelOutput);
-
-    currentTime = new Date();
-    formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
-    console.log(formattedTime + " - postprocess is completed");
+    this.showDebugLog(" - postprocess is completed");
     croppedImg.delete();
     croppedMask.delete();
+
     // 更新原始图像
     const imageResult = this.mergeResultWithImage(image, postResult, x_min, x_max, y_min, y_max);
-    currentTime = new Date();
-    formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
-    console.log(formattedTime + " - final image is generated");
+    this.showDebugLog(" - final image is generated");
+
     return imageResult;
   }
 
@@ -315,11 +308,8 @@ export class Migan {
     cv.resize(mask, resizedMask, dsize, 0, 0, cv.INTER_NEAREST);
 
     // Convert image and mask to float32
-    //const floatImage = resizedImage.convertTo(cv.CV_32F).divide(255).multiply(2).subtract(1);
     const imageChwArray = this.convertImgToChwArray(resizedImage);
     resizedImage.delete();
-
-    //const floatMask = resizedMask.convertTo(cv.CV_32F).divide(255);
     const maskChwArray = this.convertMaskToChwArray(resizedMask);
     resizedMask.delete();
 
@@ -373,7 +363,6 @@ export class Migan {
     const C = channels.size(); // 通道数
     const H = imgData.rows; // 图像高度
     const W = imgData.cols; // 图像宽度
-    console.log('the img size is: ' + C + ' ' + H + '' + W);
 
     const chwArray = new Float32Array(C * H * W); // 创建新的数组来存储转换后的数据
 
@@ -396,8 +385,6 @@ export class Migan {
     const H = imgData.rows; // 图像高度
     const W = imgData.cols; // 图像宽度
 
-    console.log('the mask size is: ' + channels.size() + ' ' + H + '' + W);
-
     const chwArray = new Float32Array(C * H * W); // 创建新的数组来存储转换后的数据
 
     for (let c = 0; c < C; c++) {
@@ -405,7 +392,6 @@ export class Migan {
       for (let h = 0; h < H; h++) {
         for (let w = 0; w < W; w++) {
           chwArray[c * H * W + h * W + w] = channelData[h * W + w] / 255 ;
-          //chwArray[c * H * W + h * W + w] = channelData[h * W + w] === 255 ? 0 : 1
         }
       }
     };
@@ -416,9 +402,7 @@ export class Migan {
 
     // deal with the modelOutput data and convert it into a CV_8UC3 Mat.
     const chwToHwcData = this.convertToHwcData(modelOutput);
-    let currentTime = new Date();
-    let formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
-    console.log(formattedTime + " - postprogess: convertToHwcData is completed");
+    this.showDebugLog(" - postprogess: convertToHwcData is completed");
 
     const rgba = new Uint8ClampedArray(chwToHwcData);
     const outImgMat = cv.matFromArray(this.res, this.res, cv.CV_8UC4, rgba);
@@ -430,27 +414,21 @@ export class Migan {
 
     // deal with the mask data: apply max pooling
     const maskTemp = this.maxPool2D(mask);
-    currentTime = new Date();
-    formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
-    console.log(formattedTime + " - postprogess: maxPool is completed");
+    this.showDebugLog(" - postprogess: maxPool is completed");
 
     // deal with the mask data: apply Gaussian blur to the mask
     const maskBlur = this.gaussianSmoothing(maskTemp);
-    currentTime = new Date();
-    formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
-    console.log(formattedTime + " - postprogess: gaussianSmoothing is completed");
+    this.showDebugLog(" - postprogess: gaussianSmoothing is completed");
+    maskTemp.delete();
     //await this.tempSaveImageFile(mask);
     //await this.tempSaveImageFile(maskTemp);
     //await this.tempSaveImageFile(maskBlur);
-    maskTemp.delete();
 
     // Compose the final image
     const composedImg = this.createComposedImage(image, maskBlur, outImgMat);
     outImgMat.delete();
+    this.showDebugLog(" - postprogess: createComposedImage is completed");
 
-    currentTime = new Date();
-    formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
-    console.log(formattedTime + " - postprogess: createComposedImage is completed");
     return composedImg;
   }
 
@@ -459,6 +437,7 @@ export class Migan {
     cv.cvtColor(image, imageRgba, cv.COLOR_RGB2RGBA);
     cv.bitwise_not(mask,mask);
     modelOutput.copyTo(imageRgba,mask);
+
     return imageRgba;
   }
 
@@ -498,7 +477,6 @@ export class Migan {
   }
 
   gaussianSmoothing(inputMat) {
-
     let channels = 1;  // 设置为图像的通道数
     const kernelSize = 5;  // 设置卷积核的大小
     const sigma = 1.0;  // 设置高斯函数的标准差
@@ -506,10 +484,8 @@ export class Migan {
 
     // 确保 channels 不超过输入图像的通道数
     channels = 1;
-
     // 创建输出矩阵
     const outputMat = new cv.Mat();
-
     // 执行 Gaussian Smoothing
     cv.GaussianBlur(inputMat, outputMat, new cv.Size(kernelSize, kernelSize), sigma, sigma, cv.BORDER_DEFAULT);
 
@@ -528,10 +504,12 @@ export class Migan {
     this.session.destroy();
   }
 
-  imageDataToDataURL(input) {
-    const offscreenCanvas = wx.createOffscreenCanvas({type: '2d', width: input.cols, height: input.rows});
-    cv.imshow(offscreenCanvas, input);
-    return offscreenCanvas.toDataURL(('image/jpg', 0.9));
+  showDebugLog(logMessage) {
+    if (this.debugMode) {
+      const currentTime = new Date();
+      const formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
+      console.log(formattedTime + logMessage);
+    }
   }
 
   async tempSaveImageFile(image) {
@@ -560,7 +538,12 @@ export class Migan {
             console.log(err);
         }
     });
+  }
 
+  imageDataToDataURL(input) {
+    const offscreenCanvas = wx.createOffscreenCanvas({type: '2d', width: input.cols, height: input.rows});
+    cv.imshow(offscreenCanvas, input);
+    return offscreenCanvas.toDataURL(('image/jpg', 0.9));
   }
 
 }
