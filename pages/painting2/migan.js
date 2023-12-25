@@ -63,7 +63,7 @@ export class Migan {
     try {
       this.session = wx.createInferenceSession({
         model: modelPath,
-        precisionLevel: 0,
+        precisionLevel: 4,
         allowNPU: false,
         allowQuantize: false,
       });
@@ -153,11 +153,10 @@ export class Migan {
   }
 
   async execute(image, mask) {
-    this.showDebugLog(" - the process is starting");
+    this.showDebugLog(" - the image is processing");
 
     // 获取裁剪边界框坐标
     const [x_min, x_max, y_min, y_max] = this.getMaskedBbox(mask);
-    console.log(x_min + ' ' + x_max + ' ' +  y_min + ' ' + y_max);
 
     // 裁剪图像和 mask
     const croppedImg = image.roi(new cv.Rect(x_min, y_min, x_max - x_min, y_max - y_min));
@@ -179,7 +178,7 @@ export class Migan {
 
     // 更新原始图像
     const imageResult = this.mergeResultWithImage(image, postResult, x_min, x_max, y_min, y_max);
-    this.showDebugLog(" - final image is generated");
+    this.showDebugLog(" - the converted image is generated");
 
     return imageResult;
   }
