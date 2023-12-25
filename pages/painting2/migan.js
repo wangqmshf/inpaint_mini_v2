@@ -177,6 +177,7 @@ export class Migan {
 
     // 后处理
     const postResult = await this.postprocess(croppedImg, croppedMask, modelOutput);
+
     currentTime = new Date();
     formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
     console.log(formattedTime + " - postprocess is completed");
@@ -423,32 +424,28 @@ export class Migan {
     const outImgMat = cv.matFromArray(this.res, this.res, cv.CV_8UC4, rgba);
 
     // Resize model output using BILINEAR interpolation
-     const dsize = new cv.Size(image.cols, image.rows);
+    const dsize = new cv.Size(image.cols, image.rows);
     cv.resize(outImgMat, outImgMat, dsize, 0, 0, cv.INTER_LINEAR);
     //await this.tempSaveImageFile(outImgMat);
 
-    /*
     // deal with the mask data: apply max pooling
-    const maskTempArray = new Uint8ClampedArray(mask.data);
-    const maskNextArray = this.maxPool2D(maskTempArray, 3, 1, 1);
-    const maskTemp = new cv.Mat(mask.rows, mask.cols, cv.CV_8U);;
-    maskTemp.data.set(maskNextArray);
+    const maskTemp = this.maxPool2D(mask);
     currentTime = new Date();
     formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
     console.log(formattedTime + " - postprogess: maxPool is completed");
 
     // deal with the mask data: apply Gaussian blur to the mask
     const maskBlur = this.gaussianSmoothing(maskTemp);
-    maskTemp.delete();
     currentTime = new Date();
     formattedTime = currentTime.toISOString().slice(0, 19).replace("T", " "); // 获取时间戳字符串，格式为YYYY-MM-DD HH:mm:ss
     console.log(formattedTime + " - postprogess: gaussianSmoothing is completed");
-    await this.tempSaveImageFile(mask);
+    //await this.tempSaveImageFile(mask);
     //await this.tempSaveImageFile(maskTemp);
     //await this.tempSaveImageFile(maskBlur);
-    */
+    maskTemp.delete();
+
     // Compose the final image
-    const composedImg = this.createComposedImage(image, mask, outImgMat);
+    const composedImg = this.createComposedImage(image, maskBlur, outImgMat);
     outImgMat.delete();
 
     currentTime = new Date();
@@ -492,43 +489,12 @@ export class Migan {
     return chwToHwcData;
   }
 
-  maxPool2D(inputMatrix, poolSize, stride, padding) {
-    const numRows = inputMatrix.length;
-    const numCols = inputMatrix[0].length;
-
-    const outputRows = Math.floor((numRows - poolSize + 2 * padding) / stride) + 1;
-    const outputCols = Math.floor((numCols - poolSize + 2 * padding) / stride) + 1;
-
-    // 创建一个 Uint8ClampedArray 数组来存储输出矩阵
-    const outputMatrix = new Uint8ClampedArray(outputRows * outputCols);
-
-    for (let i = 0; i < outputRows; i++) {
-      for (let j = 0; j < outputCols; j++) {
-        let startRow = i * stride;
-        let startCol = j * stride;
-
-        let maxVal = 0;
-
-        for (let m = 0; m < poolSize; m++) {
-          for (let n = 0; n < poolSize; n++) {
-            let rowIdx = startRow + m - padding;
-            let colIdx = startCol + n - padding;
-
-            if (rowIdx >= 0 && rowIdx < numRows && colIdx >= 0 && colIdx < numCols) {
-              //for test
-              const tempInput = inputMatrix[rowIdx * numCols + colIdx] === 255 ? 0 : 255 ;
-              maxVal = Math.max(maxVal, tempInput);
-              //maxVal = Math.max(maxVal, inputMatrix[rowIdx * numCols + colIdx]);
-            }
-          }
-        }
-
-        // 将最大值写入输出矩阵
-        outputMatrix[i * outputCols + j] = Math.min(255, Math.round(maxVal));
-      }
-    }
-
-    return outputMatrix;
+  maxPool2D(src) {
+    let kernel = new cv.Mat.ones(3, 3, cv.CV_8U);
+    // 膨胀操作
+    let dst = new cv.Mat();
+    cv.dilate(src, dst, kernel, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
+    return dst;
   }
 
   gaussianSmoothing(inputMat) {
