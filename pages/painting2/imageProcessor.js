@@ -1,216 +1,154 @@
-global.wasm_url = '/utils/opencv3.4.16.wasm.br'
-// opencv_exec.js会从global.wasm_url获取wasm路径
+// 设置 OpenCV wasm 文件路径
+global.wasm_url = '/utils/opencv3.4.16.wasm.br';
+// opencv_exec.js 会从 global.wasm_url 获取 wasm 路径
 let cv = require('../../utils/opencv_exec.js');
 
-// 获取图像数据
+// 异步加载图像数据
 async function loadImage(imgUrl) {
-    // 创建2d类型的离屏画布（需要微信基础库2.16.1以上）
+    // 创建 2D 类型的离屏画布（需要微信基础库2.16.1以上）
     var offscreenCanvas = wx.createOffscreenCanvas({type: '2d'});
     const image = offscreenCanvas.createImage();
+
     await new Promise(function (resolve, reject) {
-      image.onload = resolve
-      image.src = imgUrl
+        image.onload = resolve;
+        image.src = imgUrl;
     });
 
-    // draw image on canvas
+    offscreenCanvas.width = image.width;
+    offscreenCanvas.height = image.height;
+
+    // 在画布上绘制图像
     var ctx = offscreenCanvas.getContext('2d');
     ctx.drawImage(image, 0, 0, image.width, image.height);
 
-    // get image data from canvas
+    // 从画布获取图像数据
     var imgData = ctx.getImageData(0, 0, image.width, image.height);
 
-    return {
-      imgData: imgData,
-      width: image.width,
-      height: image.height
+    return imgData;
+
+}
+
+function readAndConvertToRGB(imgData) {
+    const src = cv.imread(imgData);
+    const src_rgb = new cv.Mat();
+    cv.cvtColor(src, src_rgb, cv.COLOR_RGBA2RGB);
+    src.delete();
+    return src_rgb;
+}
+
+function changMaskColor(inputMask, selectColor) {
+    const colorMap = {
+        "#ff0000": { r: 255, g: 0, b: 0 },
+        "#ffff00": { r: 255, g: 255, b: 0 },
+        "#00CC00": { r: 0, g: 204, b: 0 }
+    };
+
+    const selectedColor = colorMap[selectColor];
+
+    if (selectedColor) {
+        const { b, g, r } = selectedColor;
+        const imgData = inputMask.data;
+
+        for (let i = 0; i < imgData.length; i += 4) {
+            if (imgData[i] === r && imgData[i + 1] === g && imgData[i + 2] === b) {
+                imgData[i] = 255;
+                imgData[i + 1] = 255;
+                imgData[i + 2] = 255;
+            };
+        };
+    } else {
+        return;
     };
 }
 
+function convertAndResizeMask(inputMask, width, height) {
+    const maskGrey = new cv.Mat();
+    const mask = new cv.Mat();
+    const dsize = new cv.Size(width, height); // 新尺寸
+    cv.cvtColor(inputMask, maskGrey, cv.COLOR_BGR2GRAY);
+    cv.bitwise_not(maskGrey,maskGrey);
 
-function imgProcess(img) {
-  const channels = new cv.MatVector();
-  cv.split(img, channels);
-
-  const C = channels.size();
-  const H = img.rows;
-  const W = img.cols;
-
-  // Float32Array ?
-  const chwArray = new Uint8Array(C * H * W);
-
-  for (let c = 0; c < C; c++) {
-    const channelData = channels.get(c).data;
-    for (let h = 0; h < H; h++) {
-      for (let w = 0; w < W; w++) {
-        chwArray[c * H * W + h * W + w] = channelData[h * W + w];
-      }
-    }
-  }
-
-  channels.delete();
-  return chwArray;
+    // 调整图像大小
+    cv.resize(maskGrey, mask, dsize, 0, 0, cv.INTER_NEAREST);
+    maskGrey.delete();
+    return mask;
 }
 
-function maskProcess(img) {
-  const channels = new cv.MatVector();
-  cv.split(img, channels);
 
-  const C = 1;
-  const H = img.rows;
-  const W = img.cols;
-
-  const chwArray = new Uint8Array(C * H * W);
-
-  for (let c = 0; c < C; c++) {
-    const channelData = channels.get(0).data;
-    for (let h = 0; h < H; h++) {
-      for (let w = 0; w < W; w++) {
-        chwArray[c * H * W + h * W + w] = (channelData[h * W + w] !== 255) * 255;
-      }
-    }
-  }
-
-  channels.delete();
-  return chwArray;
+// 将 ImageData 转换为数据 URL
+function imageDataToDataURL(input) {
+    const offscreenCanvas = wx.createOffscreenCanvas({type: '2d', width: input.cols, height: input.rows});
+    cv.imshow(offscreenCanvas, input);
+    return offscreenCanvas.toDataURL(('image/jpg', 0.9));
 }
 
-async function processImage(img) {
-  return new Promise((resolve, reject) => {
+// 执行图像修复
+export async function inPaint(imageFile, maskFile, model, selectColor) {
     try {
-      const src = cv.imread(img);
-      const src_rgb = new cv.Mat();
-      cv.cvtColor(src, src_rgb, cv.COLOR_RGBA2RGB);
-      resolve(imgProcess(src_rgb));
-      src.delete();
-      src_rgb.delete();
+
+        console.time('preProcess');
+
+        // 异步加载原始图像和掩码图像
+        const originalImg = await loadImage(imageFile);
+
+        const originalMask = await loadImage(maskFile);
+
+        // 使用 OpenCV 读取图像数据
+        const img = readAndConvertToRGB(originalImg);
+
+        // 使用 OpenCV 读取掩码图像
+        const maskInput = cv.imread(originalMask);
+        changMaskColor(maskInput, selectColor);
+
+        // 将mask转成灰度图片并调整到图片大小一致
+        const mask = convertAndResizeMask(maskInput, originalImg.width, originalImg.height);
+        //await tempSaveImageFile(mask);
+
+        // 执行模型推理
+        const resultArray = await model.execute(img, mask);
+        const resultImage = cv.matFromArray(img.rows, img.cols, cv.CV_8UC4, resultArray);
+        const resultUrl = imageDataToDataURL(resultImage);
+        console.log("the whole process is completed");
+        mask.delete();
+        img.delete();
+        return resultUrl;
     } catch (error) {
-      reject(error);
+        console.error(error);
+        throw error;
     }
-  });
 }
 
-async function processMask(img, height, width) {
-  return new Promise((resolve, reject) => {
-    try {
-      const src = cv.imread(img);
-      const src_grey = new cv.Mat();
-      const dst = new cv.Mat()
-      const dsize = new cv.Size(width, height) // 新尺寸
+export async function tempSaveImageFile(image) {
 
-      cv.cvtColor(src, src_grey, cv.COLOR_BGR2GRAY);
-
-      // 调整图像大小
-      cv.resize(src_grey, dst, dsize, 0, 0, cv.INTER_NEAREST)
-
-      resolve(maskProcess(dst));
-
-      src.delete();
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-function postProcess(uint8Data, width, height) {
-  const chwToHwcData = [];
-  const size = width * height;
-
-  for (let h = 0; h < height; h++) {
-    for (let w = 0; w < width; w++) {
-      for (let c = 0; c < 3; c++) {
-        const chwIndex = c * size + h * width + w;
-        const pixelVal = uint8Data[chwIndex];
-        let newPixel = pixelVal;
-
-        if (pixelVal > 255) {
-          newPixel = 255;
-        } else if (pixelVal < 0) {
-          newPixel = 0;
+    const base64Img = imageDataToDataURL(image);
+    console.log(base64Img);
+    const number = Math.random();
+    wx.getFileSystemManager().writeFile({
+        filePath: wx.env.USER_DATA_PATH + '/pic' + number + '.jpg',
+        data: base64Img.replace(/^data:image\/\w+;base64,/, ""),
+        encoding: 'base64',
+        success: async (res) => {
+            try {
+                await wx.saveImageToPhotosAlbum({
+                    filePath: wx.env.USER_DATA_PATH + '/pic' + number + '.jpg',
+                    success(res) {
+                        wx.showToast({ title: '分享图已成功保存到相册', icon: 'none' });
+                    },
+                    fail(res) {
+                        wx.showToast({ title: '生成分享图失败，请重试', icon: 'none' });
+                    }
+                });
+            } catch (error) {
+                wx.showToast({ title: '请授权保存图片权限以保存分享图', icon: 'none' });
+            }
+        },
+        fail: (err) => {
+            console.log(err);
         }
-
-        chwToHwcData.push(newPixel);
-      }
-
-      chwToHwcData.push(255);
-    }
-  }
-
-  return chwToHwcData;
-}
-
-function imageDataToDataURL(imageData) {
-  const canvas = wx.createCanvasContext('tempCanvas'); // 替换为实际的 canvas ID
-  canvas.width = imageData.width;
-  canvas.height = imageData.height;
-
-  // 绘制 imageData 到 canvas
-  const data = new Uint8ClampedArray(imageData.data);
-  const clampedImageData = new ImageData(data, imageData.width, imageData.height);
-  canvas.putImageData(clampedImageData, 0, 0);
-
-  // 导出为数据 URL
-  return new Promise((resolve) => {
-    canvas.toTempFilePath({
-      success: (res) => {
-        resolve(res.tempFilePath);
-      },
     });
-  });
 }
 
 
-export async function inPaint(imageFile, maskFile, model) {
-  try {
-    console.time('preProcess');
 
-    const [originalImg, originalMask] = await Promise.all([
-      loadImage(imageFile),
-      loadImage(maskFile),
-    ]);
 
-    const [img, mask] = await Promise.all([
-      processImage(originalImg.imgData),
-      processMask(originalMask.imgData, originalImg.height, originalImg.width),
-    ]);
 
-    const imageInput = {
-      shape: [1, 3, originalImg.height, originalImg.width],  // 输入形状 NCHW 值
-      data: img.buffer,    // 为一个 ArrayBuffer
-      type: 'uint8',          // 输入数据类型
-    };
-
-    const maskInput = {
-      shape: [1, 1, originalImg.height, originalImg.width],  // 输入形状 NCHW 值
-      data: mask.buffer,    // 为一个 ArrayBuffer
-      type: 'uint8',          // 输入数据类型
-      };
-    console.timeEnd('preProcess');
-    console.time('run');
-
-    const results = await model.session.run({
-      // 这里 "input" 必须与 ONNX 模型文件中的模型输入名保持严格一致
-      "image": imageInput,
-      "mask": maskInput,
-    })
-    console.timeEnd('run');
-    console.time('postProcess');
-
-    const outsTensor = results[model.outputNames[0]];
-    const chwToHwcData = postProcess(outsTensor.data, originalImg.width, originalImg.height);
-    const imageData = new ImageData(
-      new Uint8ClampedArray(chwToHwcData),
-      originalImg.width,
-      originalImg.height
-    );
-
-    console.log(imageData, 'imageData');
-
-    const result = await imageDataToDataURL(imageData);
-    console.timeEnd('postProcess');
-
-    return result;
-  } catch (error) {
-    console.error(error);
-    throw error;
-  }
-}

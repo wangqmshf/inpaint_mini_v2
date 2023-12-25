@@ -331,21 +331,23 @@ Page({
   },
 
   //inPaint
-  async inPaint() {
-  let that = this;
+  async  inPaint() {
+    let that = this;
     try {
       // 在 canvas 中显示处理结果的临时文件路径
       let imageUrl = that.data.cover;
       let maskUrl = that.data.imageList[that.data.imageList.length-1];
-      resultPath = await imageProcessor.inPaint(imageUrl, maskUrl, that.data.migan);
+      let resultPath = await imageProcessor.inPaint(imageUrl, maskUrl, that.data.migan, that.data.selectColor);
       // 更新页面数据，显示处理结果的图片路径
-      this.setData({
+      const ctx = that.data.canvasContext;
+      const canvas = that.data.canvasElement;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      that.setData({
         cover: resultPath,
-      });
-      that.initCanvas();
+        imageList: []
+      })
     } catch (error) {
-      console.error('处理出错：', error);
+      console.error('图像处理出错：', error);
     }
-
   }
 })
