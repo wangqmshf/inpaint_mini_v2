@@ -85,7 +85,9 @@ function imageDataToDataURL(input) {
 // 执行图像修复
 export async function inPaint(imageFile, maskFile, model, selectColor) {
     try {
-
+        wx.showLoading({
+          title: '正在处理中，请耐心等待。。。',
+        })
         console.time('preProcess');
 
         // 异步加载原始图像和掩码图像
@@ -109,19 +111,34 @@ export async function inPaint(imageFile, maskFile, model, selectColor) {
         const resultImage = cv.matFromArray(img.rows, img.cols, cv.CV_8UC4, resultArray);
         const resultUrl = imageDataToDataURL(resultImage);
         console.log("the whole process is completed");
+        setTimeout(function () {
+          wx.hideLoading()
+        }, 200)
         mask.delete();
         img.delete();
         return resultUrl;
     } catch (error) {
         console.error(error);
+        wx.showToast({
+          title: '运行失败',
+          icon: 'error',
+          duration: 2000
+        })
+        setTimeout(function () {
+          wx.hideLoading()
+        }, 200)
         throw error;
     }
 }
 
 export async function tempSaveImageFile(image) {
 
-    const base64Img = imageDataToDataURL(image);
-    console.log(base64Img);
+  const base64Img = imageDataToDataURL(image);
+  console.log(base64Img);
+  save(base64Img)
+}
+
+export async function save(base64Img) {
     const number = Math.random();
     wx.getFileSystemManager().writeFile({
         filePath: wx.env.USER_DATA_PATH + '/pic' + number + '.jpg',

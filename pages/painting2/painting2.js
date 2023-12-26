@@ -354,6 +354,9 @@ Page({
       console.error('图像处理出错：', error);
     }
   },
+  async save() {
+    imageProcessor.save(this.data.cover)
+  },
   onShareAppMessage() {
     return {
       title: '照片修复小助手',
