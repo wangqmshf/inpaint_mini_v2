@@ -1,7 +1,9 @@
 // painting-2.js
 global.wasm_url = '/utils/opencv3.4.16.wasm.br'
 // opencv_exec.js会从global.wasm_url获取wasm路径
-import { Migan } from './migan.js';
+import {
+  Migan
+} from './migan.js';
 import * as imageProcessor from './imageProcessor';
 
 let penType = 'drawPen';
@@ -26,7 +28,7 @@ Page({
    * 生命周期函数--监听页面加载
    */
   onLoad(options) {
-    let that =this;
+    let that = this;
     wx.getSystemInfo({
       success: function (res) {
         that.setData({
@@ -44,7 +46,9 @@ Page({
     });
 
     // Load the module
-    wx.showLoading({ title: '模型正在加载...' });
+    wx.showLoading({
+      title: '模型正在加载...'
+    });
     const migan = new Migan();
     migan.load().then(() => {
       wx.hideLoading();
@@ -325,18 +329,18 @@ Page({
             that.initCanvas();
           }
 
-       })
+        })
       }
     })
   },
 
   //inPaint
-  async  inPaint() {
+  async inPaint() {
     let that = this;
     try {
       // 在 canvas 中显示处理结果的临时文件路径
       let imageUrl = that.data.cover;
-      let maskUrl = that.data.imageList[that.data.imageList.length-1];
+      let maskUrl = that.data.imageList[that.data.imageList.length - 1];
       let resultPath = await imageProcessor.inPaint(imageUrl, maskUrl, that.data.migan, that.data.selectColor);
       // 更新页面数据，显示处理结果的图片路径
       const ctx = that.data.canvasContext;
@@ -348,6 +352,18 @@ Page({
       })
     } catch (error) {
       console.error('图像处理出错：', error);
+    }
+  },
+  onShareAppMessage() {
+    return {
+      title: '照片修复小助手',
+      imageUrl: '/images/mini_code.jpg'
+    }
+  },
+  onShareTimeline() {
+    return {
+      title: '照片修复小助手',
+      imageUrl: '/images/mini_code.jpg'
     }
   }
 })
