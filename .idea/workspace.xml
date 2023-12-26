@@ -4,11 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9024490b-ec78-4154-9640-c52d8953670b" name="Changes" comment="add readme">
+    <list default="true" id="9024490b-ec78-4154-9640-c52d8953670b" name="Changes" comment="add save and loading for running model">
       <change beforePath="$PROJECT_DIR$/pages/painting2/imageProcessor.js" beforeDir="false" afterPath="$PROJECT_DIR$/pages/painting2/imageProcessor.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pages/painting2/painting2.js" beforeDir="false" afterPath="$PROJECT_DIR$/pages/painting2/painting2.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pages/painting2/painting2.wxml" beforeDir="false" afterPath="$PROJECT_DIR$/pages/painting2/painting2.wxml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/project.config.json" beforeDir="false" afterPath="$PROJECT_DIR$/project.config.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -131,7 +129,23 @@
       <option name="project" value="LOCAL" />
       <updated>1703603841186</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="add save and loading for running model">
+      <option name="closed" value="true" />
+      <created>1703609142080</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1703609142080</updated>
+    </task>
+    <task id="LOCAL-00003" summary="add save and loading for running model">
+      <option name="closed" value="true" />
+      <created>1703609151390</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1703609151390</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -147,6 +161,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="add readme" />
-    <option name="LAST_COMMIT_MESSAGE" value="add readme" />
+    <MESSAGE value="add save and loading for running model" />
+    <option name="LAST_COMMIT_MESSAGE" value="add save and loading for running model" />
   </component>
 </project>
